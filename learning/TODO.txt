@@ -1,0 +1,8 @@
+TRY THIS!
+-Create a program that reads in a string containing
+    a first name followed by a blank followed by a last name.
+    Write functions to remove any leading or trailing blanks.
+    Write another function that returns the last name.
+-Write a function that converts a string to uppercase.
+-Write a function that gets the first word from a string
+    and returns the remainder of the string.

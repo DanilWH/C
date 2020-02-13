@@ -1,0 +1,24 @@
+0.  The "pneumonoultramicroscopicsilicovolcanoconiosis" word
+    is the longest word I've ever seen!
+1.  getrusage - get resource usage.
+2.  There are 16 fields in a variable of struct rusage type.
+3.  To check if the addresses b and a are incorrect.
+4.  The main cycle of the main() function works while not end-of-file and
+    reads each character and then checks it:
+        -if the current character is one of alphabet letters or it is an
+            apostrophe, then we store the character to the array that can store
+            a word of 46 characters length.
+            -if the number of characters in a word is more than specified
+                by the LENGTH constant, we skip all the following letters until
+                we find a space or another symbol.
+        -else if we found a number in a word, we consume remainder of the word.
+        -else if we found something another except alphabetical letters
+            or apostrophes we can guess that it is a space symbol and we have read
+            a word. So now we have to check the spelling of the word.
+
+    That's we read the words that should be length of 46 symbols and contain
+    alphabetical letters and apostrophes only.
+5.  Using of the fscanf() function is possible but it might be slower
+    than using the fgetc() funcion.
+6.  It is done because given arguments must not changed in the check() and
+    load() functions. Otherwise the result will not be correct.

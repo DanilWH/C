@@ -1,0 +1,52 @@
+0.  stdint.h — The header file declares integer types,
+    which have a given size, have a given minimum
+    size and which are the fastest when used.
+    In addition to these, the standard declares macros that set
+    the size of these types. The platform should support at least,
+    a number of integer types of specified sizes.
+1.  The uint8_t, uint32_t, int32_t and uint16_t types is used in
+    the program to save the memory and to make the program to work fast.
+        You should use them if you know how big is the values that
+    will be used in your program.
+2.  BYTE - 8 bits.
+    DWORD - 32 bits.
+    LONG - 32 bits.
+    WORD - 16 bits.
+3.  By ASCII - BM
+    By Decimal - 66 77
+    By Heximal - 0x42 0x4d
+4.  bfSize - keeps the total file size.
+    biSize - keeps the strucrure size of the file.
+5.  A negative number of the biHeight field means that the bitmap
+    is a top-down and its origin is the upper-left corner.
+6.  biBitCount
+7.  Out of memory.
+    A file is defended from writing.
+8.  The third argument of the fread() function determines how many
+    elements (of length number_bytes (the second argument)) will be read.
+    The zero value means that the fread() function will read only one element
+    of length sizeof(BITMAPFILEHEADER).
+9.  3
+10. The fseek(FILE *stream, long offset, int origin)
+    function sets a position pointer in a file associated
+    with stream according to the offset and origin values.
+    Its main purpose is to support the input/output operations
+    by a random adress. The offser argument is a byte-base shift
+    from the position defined by origin to a new position.
+
+    Функция fseek() устанавливает указатель положения в файле,
+    связанном со stream, в соответ­ствии со значениями offset и origin.
+    Ее основное назначение — поддерживать операции ввода/ вывода по
+    произвольному адресу. Аргумент offset — это выраженный в байтах
+    сдвиг от позиции, определяемой origin, до новой позиции. Аргумент
+    origin может принимать значения 0, 1 или 2, причем 0 означает начало
+    файла, 1 — текущую позицию, а 2 — конец файла. В stdio.h определе­ны
+    следующие макросы для origim.
+11. SEEK_CUP is a macros that means a shift from the current position.
+12. TODO
+13. TODO
+14. TODO
+15. TODO
+16. TODO
+17. TODO
+18. TODO
