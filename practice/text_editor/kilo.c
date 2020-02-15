@@ -46,10 +46,9 @@ struct editorConfig {
     int screenrows;
     int screencols;
     int numrows;
-    erow row;
+    erow *row;
     struct termios orig_termios;
 };
-
 struct editorConfig E;
 
 // the buffer of dynamic strings.
@@ -67,6 +66,7 @@ void die (const char *s);
 int editorReadKey();
 int getCursorPosition(int *rows, int *cols);
 int getWindowSize(int *rows, int * cols);
+void editorAppendRow(char* s, size_t len);
 void editorOpen(char* filename);
 void abAppend(struct abuf *ab, const char *s, int len);
 void abFree(struct abuf *ab);
@@ -98,7 +98,10 @@ void initEditor() {
     E.cx = 0;
     E.cy = 0;
 
+    // assign the number of the text rows stored in the buffer.
     E.numrows = 0;
+    // init the pointer of text row to NULL.
+    E.row = NULL;
 
     // get the size of the terminal.
     if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
@@ -233,33 +236,45 @@ int getWindowSize(int *rows, int * cols) {
     }
 }
 
+/*** row operations ***/
+
+void editorAppendRow(char* s, size_t len) {
+    // reallocate the block of memory for the new row.
+    E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
+
+    // write the lenght of the read string into E.row.size
+    // and copy the sting into the E.row.chars buffer.
+    int at = E.numrows;
+    E.row[at].size = len;
+    E.row[at].chars = malloc(len + 1);
+    memcpy(E.row[at].chars, s, len);
+    E.row[at].chars[len] = '\0';
+    E.numrows++;
+}
+
 /*** file i/o ***/
 
 void editorOpen(char* filename) {
+    // open the given file.
     FILE* fp = fopen(filename, "r");
     if (!fp) die("fopen");
 
     char* line = NULL;
     size_t linecap = 0; // line capacity
     ssize_t linelen;
-    // store the first line of a file(from fp to line) and return
-    // the number of characters read without the null byte '\0'.
-    linelen = getline(&line, &linecap, fp);
-    // if success:
-    if (linelen != -1) {
+    
+    // store each line of the file(from fp to line) while the end of the
+    // file is not reached and return the number of characters read
+    // without the null byte '\0'.
+    while ((linelen = getline(&line, &linecap, fp)) != -1) {
         // remove the delimiter character, but not including the termi‐
         // nating null byte ('\0').
         while (linelen > 0 && (line[linelen - 1] == '\n' ||
                                line[linelen - 1] == '\r'))
             linelen--;
-
-        // write the lenght of the read string into E.row.size
-        // and copy the sting into the E.row.chars buffer.
-        E.row.size = linelen;
-        E.row.chars = malloc(linelen + 1);
-        memcpy(E.row.chars, line, linelen);
-        E.row.chars[linelen] = '\0';
-        E.numrows = 1;
+        
+        // appending a string row to the buffer.
+        editorAppendRow(line, linelen);
     }
     // free the allocated blocks of memory.
     free(line);
@@ -394,24 +409,12 @@ void editorDrawRows(struct abuf *ab) {
             }
         }
         else {
-            int len = E.row.size;
+            int len = E.row[y].size;
             if (len > E.screencols) len = E.screencols;
-            abAppend(ab, E.row.chars, len);
+            abAppend(ab, E.row[y].chars, len);
         }
 
         abAppend(ab, "\x1b[K\r\n", 5);
     }
     abAppend(ab, "~", 1);
-
-    // original version.
-    /*
-    for (int y = 0; y < E.screenrows; y++) {
-        abAppend(ab, "~", 1);
-
-        abAppend(ab, "\x1b[K", 3);
-        if (y < E.screenrows - 1) {
-            abAppend(ab, "\r\n", 2);
-        }
-    }
-    */
 }
