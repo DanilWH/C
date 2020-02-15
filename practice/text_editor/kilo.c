@@ -60,7 +60,7 @@ struct abuf {
 /*** terminal init ***/
 
 void initEditor();
-void enableRawMode();
+void enableRawMode();d
 void disableRawMode();
 void die (const char *s);
 int editorReadKey();
