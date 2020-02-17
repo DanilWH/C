@@ -43,6 +43,7 @@ typedef struct erow {
 // The editor settings.
 struct editorConfig {
     int cx, cy;
+    int rowoff;
     int screenrows;
     int screencols;
     int numrows;
@@ -60,7 +61,7 @@ struct abuf {
 /*** terminal init ***/
 
 void initEditor();
-void enableRawMode();d
+void enableRawMode();
 void disableRawMode();
 void die (const char *s);
 int editorReadKey();
@@ -72,6 +73,7 @@ void abAppend(struct abuf *ab, const char *s, int len);
 void abFree(struct abuf *ab);
 void editorProcessKeypress();
 void editorMoveCursor(int key);
+void editorScroll();
 void editorRefreshScreen();
 void editorDrawRows();
 
@@ -98,6 +100,9 @@ void initEditor() {
     E.cx = 0;
     E.cy = 0;
 
+    // initialization of the rowoff globas var. that keeps track of a row of the file
+    // the user is currently scrolled to.
+    E.rowoff = 0;
     // assign the number of the text rows stored in the buffer.
     E.numrows = 0;
     // init the pointer of text row to NULL.
@@ -353,7 +358,7 @@ void editorMoveCursor(int key) {
                 E.cy--;
             break;
         case ARROW_DOWN:
-            if (E.cy < E.screenrows - 1)
+            if (E.cy < E.numrows)
                 E.cy++;
             break;
     }
@@ -361,7 +366,18 @@ void editorMoveCursor(int key) {
 
 /*** output ***/
 
+void editorScroll() {
+    // adjusts E.rowoff depending on where the cursor is.
+    if (E.cy < E.rowoff)
+        E.rowoff = E.cy;
+    if (E.cy >= E.rowoff + E.screenrows)
+        E.rowoff = E.cy - E.screenrows + 1;
+}
+
 void editorRefreshScreen() {
+    // checks should the program do a scroll.
+    editorScroll();
+
     struct abuf ab = ABUF_INIT;
     // hide the cursor while the screen is refreshing.
     abAppend(&ab, "\x1b[?25l", 6);
@@ -373,7 +389,7 @@ void editorRefreshScreen() {
 
     // and then move the cursor to the cx, cy position.
     char buf[32];
-    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.cy + 1, E.cx + 1);
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, E.cx + 1);
     abAppend(&ab, buf, strlen(buf));
 
     // show the cursor after the screen was refreshing.
@@ -384,10 +400,9 @@ void editorRefreshScreen() {
 }
 
 void editorDrawRows(struct abuf *ab) {
-    // my version.
-
-    for (int y = 0; y < E.screenrows - 1; y++) {
-        if (y >= E.numrows) {
+    for (int y = 0; y < E.screenrows; y++) {
+        int filerow = y + E.rowoff;
+        if (filerow >= E.numrows) {
             // draws a tilde and erases the part of the line to the
             // right of the cursor.
             if (E.numrows == 0 && y == E.screenrows / 3) {
@@ -409,12 +424,13 @@ void editorDrawRows(struct abuf *ab) {
             }
         }
         else {
-            int len = E.row[y].size;
+            int len = E.row[filerow].size;
             if (len > E.screencols) len = E.screencols;
-            abAppend(ab, E.row[y].chars, len);
+            abAppend(ab, E.row[filerow].chars, len);
         }
 
-        abAppend(ab, "\x1b[K\r\n", 5);
+        abAppend(ab, "\x1b[K", 3);
+        if (y < E.screenrows - 1)
+            abAppend(ab, "\r\n", 2);
     }
-    abAppend(ab, "~", 1);
 }
