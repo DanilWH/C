@@ -37,18 +37,19 @@ enum editorKey {
 // a data type for storing a row of text in our editor.
 typedef struct erow {
     int size;
-    char *chars;
+    char* chars;
 } erow;
 
 // The editor settings.
 struct editorConfig {
-    int cx, cy;
-    int rowoff;
-    int screenrows;
-    int screencols;
-    int numrows;
-    erow *row;
-    struct termios orig_termios;
+    int cx, cy; // the cursor position.
+    int rowoff; // row offset.
+    int coloff; // coloumn offset.
+    int screenrows; // the heigth of the terminal.
+    int screencols; // the weight of the terminal.
+    int numrows; // the number of the file rows.
+    erow *row; // buffer for storing a text from a file.
+    struct termios orig_termios; // holds the terminal attributes.
 };
 struct editorConfig E;
 
@@ -100,9 +101,10 @@ void initEditor() {
     E.cx = 0;
     E.cy = 0;
 
-    // initialization of the rowoff globas var. that keeps track of a row of the file
+    // initialization of the globas variables that keep track a row/column of the file
     // the user is currently scrolled to.
     E.rowoff = 0;
+    E.coloff = 0;
     // assign the number of the text rows stored in the buffer.
     E.numrows = 0;
     // init the pointer of text row to NULL.
@@ -350,7 +352,7 @@ void editorMoveCursor(int key) {
                 E.cx--;
             break;
         case ARROW_RIGHT:
-            if (E.cx < E.screencols - 1)
+            if (E.cx < 100)
                 E.cx++;
             break;
         case ARROW_UP:
@@ -370,8 +372,14 @@ void editorScroll() {
     // adjusts E.rowoff depending on where the cursor is.
     if (E.cy < E.rowoff)
         E.rowoff = E.cy;
-    if (E.cy >= E.rowoff + E.screenrows)
+    else if (E.cy >= E.rowoff + E.screenrows)
         E.rowoff = E.cy - E.screenrows + 1;
+
+    // adjusts E.coloff depending on where the cursor is.
+    if (E.cx < E.coloff)
+        E.coloff = E.cx;
+    else if (E.cx >= E.coloff + E.screencols)
+        E.coloff = E.cx - E.screencols + 1;
 }
 
 void editorRefreshScreen() {
@@ -389,7 +397,8 @@ void editorRefreshScreen() {
 
     // and then move the cursor to the cx, cy position.
     char buf[32];
-    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, E.cx + 1);
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1,
+                                              (E.cx - E.coloff) + 1);
     abAppend(&ab, buf, strlen(buf));
 
     // show the cursor after the screen was refreshing.
@@ -424,9 +433,10 @@ void editorDrawRows(struct abuf *ab) {
             }
         }
         else {
-            int len = E.row[filerow].size;
+            int len = E.row[filerow].size - E.coloff;
+            if (len < 0) len = 0;
             if (len > E.screencols) len = E.screencols;
-            abAppend(ab, E.row[filerow].chars, len);
+            abAppend(ab, &E.row[filerow].chars[E.coloff], len);
         }
 
         abAppend(ab, "\x1b[K", 3);
