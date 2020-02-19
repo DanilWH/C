@@ -346,13 +346,16 @@ void editorProcessKeypress() {
 }
 
 void editorMoveCursor(int key) {
+    // if the cursor is on an actual line.
+    erow* row = (E.cy >= E.numrows)? NULL : &E.row[E.cy];
+
     switch (key) {
         case ARROW_LEFT:
             if (E.cx > 0)
                 E.cx--;
             break;
         case ARROW_RIGHT:
-            if (E.cx < 100)
+            if (row && E.cx < row->size)
                 E.cx++;
             break;
         case ARROW_UP:
