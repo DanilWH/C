@@ -371,8 +371,7 @@ void editorProcessKeypress() {
             E.cx = 0;
             break;
         case END_KEY:
-            if (E.cy < E.numrows)
-                E.cx = E.row[E.cy].size;
+            E.cx = E.row[E.cy].size;
             break;
 
         case PAGE_UP: case PAGE_DOWN:
@@ -405,8 +404,6 @@ void editorProcessKeypress() {
 }
 
 void editorMoveCursor(int key) {
-    // if the cursor is on an actual line.
-    erow* row = (E.cy >= E.numrows)? NULL : &E.row[E.cy];
 
     switch (key) {
         case ARROW_LEFT:
@@ -420,9 +417,9 @@ void editorMoveCursor(int key) {
             }
             break;
         case ARROW_RIGHT:
-            if (row && E.cx < row->size)
+            if (E.cx < E.row[E.cy].size)
                 E.cx++;
-            else if (row) {
+            else if (E.cy < E.numrows - 1) {
                 // move the cursor one line down.
                 E.cy++;
                 // move the cursor to the beginning.
@@ -434,14 +431,12 @@ void editorMoveCursor(int key) {
                 E.cy--;
             break;
         case ARROW_DOWN:
-            if (E.cy < E.numrows)
+            if (E.cy < E.numrows - 1)
                 E.cy++;
             break;
     }
 
-    // snap the cursor to the end of a line.
-    row = (E.cy >= E.numrows)? NULL : &E.row[E.cy];
-    int rowlen = row? row->size : 0;
+    int rowlen = E.row[E.cy].size;
     if (E.cx > rowlen) E.cx = rowlen;
 }
 
