@@ -378,10 +378,22 @@ void editorProcessKeypress() {
             // we move the cursor to up or down as many times as the size
             // of the terminal is.
             {
-                int times = E.screenrows;
-                c = (c == PAGE_UP) ? ARROW_UP : ARROW_DOWN;
-                while (times--)
-                    editorMoveCursor(c);
+                // if the cursor is somewhere at the middle of the terminal then
+                // move the cursor to the up or down of the terminal edge.
+                if (E.cy > E.rowoff && E.cy < E.rowoff + E.screenrows - 1) {
+                    if (c == PAGE_UP)
+                        E.cy = E.rowoff;
+                    else if (c == PAGE_DOWN)
+                        E.cy = E.rowoff + E.screenrows - 1;
+                }
+                // if the cursor if at the up/down-terminal-edge then
+                // move the cursor through the entire terminal window size.
+                else {
+                    int times = E.screenrows;
+                    c = (c == PAGE_UP) ? ARROW_UP : ARROW_DOWN;
+                    while (times--)
+                        editorMoveCursor(c);
+                }
             }
             break;
 
