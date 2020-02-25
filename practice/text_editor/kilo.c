@@ -13,7 +13,7 @@
 #include <sys/types.h> // ssize_t;
 #include <termios.h> // tcgetattr(), tcsetattr(), ECHO, etc;
 #include <unistd.h> // read(), write(), STDOUT_FILENO;
-#include <string.h> // memcpy();
+#include <string.h> // memcpy(), strdup();
 
 /*** defines ***/
 #define CTRL_KEY(k) ((k) & 0x1f)
@@ -53,6 +53,7 @@ struct editorConfig {
     int screencols; // the weight of the terminal.
     int numrows; // the number of the file rows.
     erow *row; // buffer for storing a text from a file.
+    char* filename; // the name of the opened file.
     struct termios orig_termios; // holds the terminal attributes.
 };
 struct editorConfig E;
@@ -81,6 +82,7 @@ void abFree(struct abuf* ab);
 void editorProcessKeypress();
 void editorMoveCursor(int key);
 void editorScroll();
+void editorDrawStatusBar(struct abuf *ab);
 void editorRefreshScreen();
 void editorDrawRows();
 
@@ -114,11 +116,15 @@ void initEditor() {
     E.coloff = 0;
     // assign the number of the text rows stored in the buffer.
     E.numrows = 0;
-    // init the pointer of text row to NULL.
+    // initialize the pointer of text row to NULL.
     E.row = NULL;
+    // initialize the pointer to the file name.
+    E.filename = NULL;
 
     // get the size of the terminal.
     if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
+    // allocate the place for the status bar at the bottom of the terminal.
+    E.screenrows -= 1;
 }
 
 /*** terminal ***/
@@ -308,6 +314,10 @@ void editorAppendRow(char* s, size_t len) {
 /*** file i/o ***/
 
 void editorOpen(char* filename) {
+    // duplicate the file name to the global variable.
+    free(E.filename);
+    E.filename = strdup(filename);
+
     // open the given file.
     FILE* fp = fopen(filename, "r");
     if (!fp) die("fopen");
@@ -460,6 +470,38 @@ void editorScroll() {
         E.coloff = E.rx - E.screencols + 1;
 }
 
+void editorDrawStatusBar(struct abuf *ab) {
+    // the escape sequence <esc>[7m switches to inverted colors.
+    abAppend(ab, "\x1b[7m", 4);
+
+    // display the file name and the number of lines.
+    // status[80] for showing the file name and the number of the file.
+    // rstatus[80] for showing the cursor position.
+    char status[80], rstatus[80];
+    // format the status string.
+    int len = snprintf(status, sizeof(status), "%.20s - %d lines.",
+                       E.filename ? E.filename : "[No Name]", E.numrows);
+    // format the rstatus string.
+    int rlen = snprintf(rstatus, sizeof(rstatus), "Ln: %i, Col: %i", E.cy + 1, E.cx + 1);
+    // cut the status string if it's longer than the terminal weight.
+    if (len > E.screencols) len = E.screencols;
+    // don't display the rstatus string if it's longer than
+    // the right space of the status bar.
+    if (rlen > E.screencols - len - 1) rlen = 0;
+    // display the file name and lines number.
+    abAppend(ab, status, len);
+
+    // fill the rest space with white spaces.
+    for (; len < E.screencols - rlen; len++)
+        abAppend(ab, " ", 1);
+
+    // display the cursor position.
+    abAppend(ab, rstatus, rlen);
+    
+    // the escape sequence <esc>[m switches back to normal formatting.
+    abAppend(ab, "\x1b[m", 3);
+}
+
 void editorRefreshScreen() {
     // checks should the program do a scroll.
     editorScroll();
@@ -470,8 +512,10 @@ void editorRefreshScreen() {
     // move the cursor to the top-left corner.
     abAppend(&ab, "\x1b[H", 3);
 
-    // draw the tildes.
+    // draw the lines.
     editorDrawRows(&ab);
+    // draw the status bar.
+    editorDrawStatusBar(&ab);
 
     // and then move the cursor to the cx, cy position.
     char buf[32];
@@ -518,7 +562,6 @@ void editorDrawRows(struct abuf *ab) {
         }
 
         abAppend(ab, "\x1b[K", 3);
-        if (y < E.screenrows - 1)
-            abAppend(ab, "\r\n", 2);
+        abAppend(ab, "\r\n", 2);
     }
 }
