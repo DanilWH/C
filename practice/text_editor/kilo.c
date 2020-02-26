@@ -8,10 +8,12 @@
 #include <ctype.h> // iscntrl();
 #include <errno.h> // errno(), EAGAIN;
 #include <stdio.h> // printf(), sscanf(), perror(), getline();
+#include <stdarg.h> // va_list, va_start(), va_end();
 #include <stdlib.h> // atexit(), exit();
 #include <sys/ioctl.h> // ioctl(), TIOCGWINSZ;
 #include <sys/types.h> // ssize_t;
 #include <termios.h> // tcgetattr(), tcsetattr(), ECHO, etc;
+#include <time.h> // time_t, time();
 #include <unistd.h> // read(), write(), STDOUT_FILENO;
 #include <string.h> // memcpy(), strdup();
 
@@ -54,6 +56,8 @@ struct editorConfig {
     int numrows; // the number of the file rows.
     erow *row; // buffer for storing a text from a file.
     char* filename; // the name of the opened file.
+    char statusmsg[80];
+    time_t statusmsg_time;
     struct termios orig_termios; // holds the terminal attributes.
 };
 struct editorConfig E;
@@ -84,17 +88,23 @@ void editorMoveCursor(int key);
 void editorScroll();
 void editorDrawStatusBar(struct abuf *ab);
 void editorRefreshScreen();
+void editorSetStatusMessage(const char* fmt, ...);
 void editorDrawRows();
 
 /*** init ***/
 
 int main(int argc, char* argv[]) {
+    // preparing of the terminal to an text editor view.
     enableRawMode();
     initEditor();
+    // open the file.
     if (argc >= 2) {
         editorOpen(argv[1]);
     }
 
+    editorSetStatusMessage("HELP: Ctrl-Q = quit");
+
+    // run the editor process.
     while(1) {
         editorRefreshScreen();
         editorProcessKeypress();
@@ -120,11 +130,15 @@ void initEditor() {
     E.row = NULL;
     // initialize the pointer to the file name.
     E.filename = NULL;
+    // initialize the status message to an empty string.
+    E.statusmsg[0] = '\0';
+    // initialize the counter of time that the message is shown by.
+    E.statusmsg_time = 0;
 
     // get the size of the terminal.
     if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
     // allocate the place for the status bar at the bottom of the terminal.
-    E.screenrows -= 1;
+    E.screenrows -= 2;
 }
 
 /*** terminal ***/
@@ -500,6 +514,20 @@ void editorDrawStatusBar(struct abuf *ab) {
     
     // the escape sequence <esc>[m switches back to normal formatting.
     abAppend(ab, "\x1b[m", 3);
+    // move to the next line (for message status).
+    abAppend(ab, "\r\n", 2);
+}
+
+void editorDrawMessageBar(struct abuf* ab) {
+    // erase the line preparing to show the status message.
+    abAppend(ab, "\x1b[K", 3);
+    // get the status message lenght.
+    int msglen = strlen(E.statusmsg);
+    // cut if the status message is longer than the terminal wigth is.
+    if (msglen > E.screencols) msglen = E.screencols;
+    // show it for 5 seconds.
+    if (msglen && time(NULL) - E.statusmsg_time < 5)
+        abAppend(ab, E.statusmsg, msglen);
 }
 
 void editorRefreshScreen() {
@@ -516,6 +544,8 @@ void editorRefreshScreen() {
     editorDrawRows(&ab);
     // draw the status bar.
     editorDrawStatusBar(&ab);
+    // draw the status message.
+    editorDrawMessageBar(&ab);
 
     // and then move the cursor to the cx, cy position.
     char buf[32];
@@ -528,6 +558,17 @@ void editorRefreshScreen() {
 
     write(STDOUT_FILENO, ab.b, ab.len);
     abFree(&ab);
+}
+
+void editorSetStatusMessage(const char* fmt, ...) {
+    // working with a variadic function.
+    va_list ap;
+    // start getting the arguments.
+    va_start(ap, fmt);
+    vsnprintf(E.statusmsg, sizeof(E.statusmsg), fmt, ap);
+    va_end(ap);
+    // end getting the arguments and assing the current time to a global variable.
+    E.statusmsg_time = time(NULL);
 }
 
 void editorDrawRows(struct abuf *ab) {
