@@ -24,6 +24,7 @@
 #define KILO_TAB_STOP 8
 
 enum editorKey {
+    BACKSPACE = 127,
     ARROW_LEFT = 1000,
     ARROW_RIGHT,
     ARROW_UP,
@@ -328,21 +329,26 @@ void editorAppendRow(char* s, size_t len) {
 }
 
 void editorRowInsertChar(erow* row, int at, int c) {
+    // check if the cursor position is proper.
     if (at < 0 || at > row->size) at = row->size;
+    // realloc the space of the row for the new character (add 2 for the NULL byte).
     row->chars = realloc(row->chars, row->size + 2);
+    // move the left part from "at" position to the right one position.
     memmove(&row->chars[at + 1], &row->chars[at], row->size - at + 1);
+    // the size is increased.
     row->size++;
+    // insert the given character to "at" position.
     row->chars[at] = c;
+    // update the row to show the changes.
     editorUpdateRow(row);
 }
 
 /*** editor operations ***/
 
 void editorInsertChar(int c) {
-    if (E.cy == E.numrows) {
-        editorAppendRow("", 0);
-    }
+    // call the function to insert the given character.
     editorRowInsertChar(&E.row[E.cy], E.cx, c);
+    // after inserting move the cursor forward.
     E.cx++;
 }
 
@@ -405,6 +411,11 @@ void editorProcessKeypress() {
     int c = editorReadKey();
 
     switch (c) {
+        // react to the "enter" key.
+        case '\r':
+            /* TODO */
+            break;
+
         case CTRL_KEY('q'):
             // refrech the screen when it's quited.
             editorRefreshScreen();
@@ -419,7 +430,14 @@ void editorProcessKeypress() {
             E.cx = E.row[E.cy].size;
             break;
 
-        case PAGE_UP: case PAGE_DOWN:
+        case BACKSPACE:
+        case CTRL_KEY('h'):
+        case DELETE_KEY:
+            /* TODO */
+            break;
+
+        case PAGE_UP:
+        case PAGE_DOWN:
             // we move the cursor to up or down as many times as the size
             // of the terminal is.
             {
@@ -441,11 +459,20 @@ void editorProcessKeypress() {
                 }
             }
             break;
-
-        case ARROW_UP: case ARROW_DOWN: case ARROW_LEFT: case ARROW_RIGHT:
+        
+        case ARROW_UP:
+        case ARROW_DOWN:
+        case ARROW_LEFT:
+        case ARROW_RIGHT:
             editorMoveCursor(c);
             break;
 
+        // ignore the 27 escape sequenses ("ESC" key).
+        case CTRL_KEY('l'):
+        case '\x1b':
+            break;
+
+        // else insert the character.
         default:
             editorInsertChar(c);
             break;
@@ -453,7 +480,6 @@ void editorProcessKeypress() {
 }
 
 void editorMoveCursor(int key) {
-
     switch (key) {
         case ARROW_LEFT:
             if (E.cx > 0)
