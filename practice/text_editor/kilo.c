@@ -83,6 +83,7 @@ void editorUpdateRow(erow* row);
 void editorAppendRow(char* s, size_t len);
 void editorRowInsertChar(erow* row, int at, int c);
 void editorInsertChar(int c);
+char* editorRowsToString(int* buflen);
 void editorOpen(char* filename);
 void abAppend(struct abuf* ab, const char* s, int len);
 void abFree(struct abuf* ab);
@@ -353,6 +354,36 @@ void editorInsertChar(int c) {
 }
 
 /*** file i/o ***/
+
+char* editorRowsToString(int* buflen) {
+    /* converts the array of "erow" structs into a single string. */
+
+    // count how many character has the buffer (len of the whole file).
+    // we also add 1 to each one for the newline character. 
+    int totlen = 0;
+    for (int i = 0; i < E.numrows; i++)
+        totlen += E.row[i].size + 1;
+    *buflen = totlen;
+
+    // copy the rows of the text to new variable.
+    char* buf = malloc(totlen);
+    // the second pointer to the allocated block of memory
+    // where the string should by saved.
+    char* p = buf;
+    for (int i = 0; i < E.numrows; i++) {
+        // copy a row to string variable
+        memcpy(p, E.row[i].chars, E.row[i].size);
+        // move to the end of the row
+        p += E.row[i].size;
+        // and change the NULL byte '\0' by '\n' escape sequence.
+        *p = '\n';
+        // move one byte forward.
+        p++;
+    }
+
+    // return buf address excepting the caller free() the memory.
+    return buf;
+}
 
 void editorOpen(char* filename) {
     // duplicate the file name to the global variable.
@@ -647,6 +678,7 @@ void editorDrawRows(struct abuf *ab) {
             }
         }
         else {
+            // pring the text row-by-row.
             int len = E.row[filerow].rsize - E.coloff;
             if (len < 0) len = 0;
             if (len > E.screencols) len = E.screencols;
