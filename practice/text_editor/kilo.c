@@ -7,6 +7,7 @@
 
 #include <ctype.h> // iscntrl();
 #include <errno.h> // errno(), EAGAIN;
+#include <fcntl.h> // open(), O_RDWR, O_CREAT;
 #include <stdio.h> // printf(), sscanf(), perror(), getline();
 #include <stdarg.h> // va_list, va_start(), va_end();
 #include <stdlib.h> // atexit(), exit();
@@ -14,7 +15,7 @@
 #include <sys/types.h> // ssize_t;
 #include <termios.h> // tcgetattr(), tcsetattr(), ECHO, etc;
 #include <time.h> // time_t, time();
-#include <unistd.h> // read(), write(), STDOUT_FILENO;
+#include <unistd.h> // read(), write(), frtuncate(), close(), STDOUT_FILENO;
 #include <string.h> // memcpy(), strdup(), memmove();
 
 /*** defines ***/
@@ -84,6 +85,7 @@ void editorAppendRow(char* s, size_t len);
 void editorRowInsertChar(erow* row, int at, int c);
 void editorInsertChar(int c);
 char* editorRowsToString(int* buflen);
+void editorSave();
 void editorOpen(char* filename);
 void abAppend(struct abuf* ab, const char* s, int len);
 void abFree(struct abuf* ab);
@@ -385,6 +387,28 @@ char* editorRowsToString(int* buflen) {
     return buf;
 }
 
+void editorSave() {
+    // check the errors.
+    if (E.filename == NULL) return;
+
+    // get the length and the address of text.
+    int len;
+    char* buf = editorRowsToString(&len);
+
+    // open the file for reading and wrtitting.(O_RDWR)
+    // If it doesn't exist then crean a new file.(O_CREATE)
+    // 0644 is the mode (the permissions) the new file should have.
+    int fd = open(E.filename, O_RDWR | O_CREAT, 0644);
+    // set the file's size to the specified length.
+    ftruncate(fd, len);
+    // write the byte to the file.
+    write(fd, buf, len);
+    // close the file (free RAM).
+    close(fd);
+    // free the block of memory containing the text.
+    free(buf);
+}
+
 void editorOpen(char* filename) {
     // duplicate the file name to the global variable.
     free(E.filename);
@@ -454,9 +478,14 @@ void editorProcessKeypress() {
             exit(0);
             break;
 
+        case CTRL_KEY('s'):
+            editorSave();
+            break;
+
         case HOME_KEY:
             E.cx = 0;
             break;
+
         case END_KEY:
             E.cx = E.row[E.cy].size;
             break;
