@@ -16,7 +16,7 @@
 #include <termios.h> // tcgetattr(), tcsetattr(), ECHO, etc;
 #include <time.h> // time_t, time();
 #include <unistd.h> // read(), write(), frtuncate(), close(), STDOUT_FILENO;
-#include <string.h> // memcpy(), strdup(), memmove();
+#include <string.h> // memcpy(), strdup(), memmove(), strerror();
 
 /*** defines ***/
 #define CTRL_KEY(k) ((k) & 0x1f)
@@ -108,7 +108,7 @@ int main(int argc, char* argv[]) {
         editorOpen(argv[1]);
     }
 
-    editorSetStatusMessage("HELP: Ctrl-Q = quit");
+    editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit");
 
     // run the editor process.
     while(1) {
@@ -399,14 +399,25 @@ void editorSave() {
     // If it doesn't exist then crean a new file.(O_CREATE)
     // 0644 is the mode (the permissions) the new file should have.
     int fd = open(E.filename, O_RDWR | O_CREAT, 0644);
-    // set the file's size to the specified length.
-    ftruncate(fd, len);
-    // write the byte to the file.
-    write(fd, buf, len);
-    // close the file (free RAM).
-    close(fd);
+    if (fd != -1) {
+        // set the file's size to the specified length.
+        if (ftruncate(fd, len) != -1) {
+            // write the byte to the file.
+            if (write(fd, buf, len) == len) {
+                // close the file (free RAM).
+                close(fd);
+                // free the block of memory containing the text.
+                free(buf);
+                editorSetStatusMessage("%d bytes written to disk", len);
+                return;
+            }
+        }
+        // close the file (free RAM).
+        close(fd);
+    }
     // free the block of memory containing the text.
     free(buf);
+    editorSetStatusMessage("Can't save! I/O error: %s", strerror(errno));
 }
 
 void editorOpen(char* filename) {
