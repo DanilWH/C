@@ -23,6 +23,7 @@
 #define ABUF_INIT {NULL, 0}
 #define KILO_VERSION "0.0.1"
 #define KILO_TAB_STOP 8
+#define KILO_QUIT_TIMES 3
 
 enum editorKey {
     BACKSPACE = 127,
@@ -480,6 +481,8 @@ void abFree(struct abuf *ab) {
 /*** input ***/
 
 void editorProcessKeypress() {
+    static int quit_times = KILO_QUIT_TIMES;
+
     // getting a character.
     int c = editorReadKey();
 
@@ -490,6 +493,12 @@ void editorProcessKeypress() {
             break;
 
         case CTRL_KEY('q'):
+            if (E.dirty && quit_times > 0) {
+                editorSetStatusMessage("WARNING!!! File has unsaved changes. "
+                "Press Ctrl-Q %d more times to quit", quit_times);
+                quit_times--;
+                return;
+            }
             // refrech the screen when it's quited.
             editorRefreshScreen();
             system("clear");
@@ -555,6 +564,8 @@ void editorProcessKeypress() {
             editorInsertChar(c);
             break;
     }
+    // reset quit_times.
+    quit_times = KILO_QUIT_TIMES;
 }
 
 void editorMoveCursor(int key) {
