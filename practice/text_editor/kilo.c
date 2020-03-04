@@ -57,6 +57,7 @@ struct editorConfig {
     int screencols; // the weight of the terminal.
     int numrows; // the number of the file rows.
     erow *row; // buffer for storing a text from a file.
+    int dirty; // dirty variable.
     char* filename; // the name of the opened file.
     char statusmsg[80];
     time_t statusmsg_time;
@@ -134,6 +135,8 @@ void initEditor() {
     E.numrows = 0;
     // initialize the pointer of text row to NULL.
     E.row = NULL;
+    // init the dirty variable to 0.
+    E.dirty = 0;
     // initialize the pointer to the file name.
     E.filename = NULL;
     // initialize the status message to an empty string.
@@ -344,6 +347,7 @@ void editorRowInsertChar(erow* row, int at, int c) {
     row->chars[at] = c;
     // update the row to show the changes.
     editorUpdateRow(row);
+    E.dirty++;
 }
 
 /*** editor operations ***/
@@ -408,6 +412,9 @@ void editorSave() {
                 close(fd);
                 // free the block of memory containing the text.
                 free(buf);
+                // reset the dirty variable.
+                E.dirty = 0;
+                // print a message to the status bar.
                 editorSetStatusMessage("%d bytes written to disk", len);
                 return;
             }
@@ -615,8 +622,9 @@ void editorDrawStatusBar(struct abuf *ab) {
     // rstatus[80] for showing the cursor position.
     char status[80], rstatus[80];
     // format the status string.
-    int len = snprintf(status, sizeof(status), "%.20s - %d lines.",
-                       E.filename ? E.filename : "[No Name]", E.numrows);
+    int len = snprintf(status, sizeof(status), "%.20s - %d lines. %s",
+                       E.filename ? E.filename : "[No Name]", E.numrows,
+                       E.dirty ? "(modified)" : "");
     // format the rstatus string.
     int rlen = snprintf(rstatus, sizeof(rstatus), "Ln: %i, Col: %i", E.cy + 1, E.cx + 1);
     // cut the status string if it's longer than the terminal weight.
