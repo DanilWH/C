@@ -85,7 +85,9 @@ int editorRowCxToRx(erow* row, int cx);
 void editorUpdateRow(erow* row);
 void editorAppendRow(char* s, size_t len);
 void editorRowInsertChar(erow* row, int at, int c);
+void editorRowDeleteChar(erow* row, int at);
 void editorInsertChar(int c);
+void editorDeleteChar();
 char* editorRowsToString(int* buflen);
 void editorSave();
 void editorOpen(char* filename);
@@ -337,10 +339,10 @@ void editorAppendRow(char* s, size_t len) {
 
 void editorRowInsertChar(erow* row, int at, int c) {
     // check if the cursor position is proper.
-    if (at < 0 || at > row->size) at = row->size;
+    if (at < 0 || at > row->size) return;
     // realloc the space of the row for the new character (add 2 for the NULL byte).
     row->chars = realloc(row->chars, row->size + 2);
-    // move the left part from "at" position to the right one position.
+    // move the right part from "at" position to the right one position.
     memmove(&row->chars[at + 1], &row->chars[at], row->size - at + 1);
     // the size is increased.
     row->size++;
@@ -351,6 +353,21 @@ void editorRowInsertChar(erow* row, int at, int c) {
     E.dirty++;
 }
 
+void editorRowDeleteChar(erow* row, int at) {
+    // check if the cursor position is proper.
+    if (at < 0 || at > row->size) at = row->size;
+    // move the right part from "at" position to the left one position.
+    memmove(&row->chars[at - 1], &row->chars[at], row->size - at + 1);
+    // reallocate the block of memory to free the space the deleted character was occupied.
+    row->chars = realloc(row->chars, row->size);
+    // deleting of a character means decrementing of a row size.
+    row->size--;
+    // update the row to show the changes.
+    editorUpdateRow(row);
+    //changes has been noticed.
+    E.dirty++;
+}
+
 /*** editor operations ***/
 
 void editorInsertChar(int c) {
@@ -358,6 +375,15 @@ void editorInsertChar(int c) {
     editorRowInsertChar(&E.row[E.cy], E.cx, c);
     // after inserting move the cursor forward.
     E.cx++;
+}
+
+void editorDeleteChar() {
+    if (E.cx > 0) {
+        // call the function which will delete the character to the next of the cursor.
+        editorRowDeleteChar(&E.row[E.cy], E.cx);
+        // after deleting move the cursor one to the left.
+        E.cx--;
+    }
 }
 
 /*** file i/o ***/
@@ -520,7 +546,8 @@ void editorProcessKeypress() {
         case BACKSPACE:
         case CTRL_KEY('h'):
         case DELETE_KEY:
-            /* TODO */
+            if (c == DELETE_KEY) editorMoveCursor(ARROW_RIGHT);
+            editorDeleteChar();
             break;
 
         case PAGE_UP:
