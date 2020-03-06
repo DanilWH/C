@@ -84,6 +84,8 @@ int getWindowSize(int* rows, int* cols);
 int editorRowCxToRx(erow* row, int cx);
 void editorUpdateRow(erow* row);
 void editorAppendRow(char* s, size_t len);
+void editorFreeRow(erow* row);
+void editorDeleteRow(int at);
 void editorRowInsertChar(erow* row, int at, int c);
 void editorRowDeleteChar(erow* row, int at);
 void editorInsertChar(int c);
@@ -337,8 +339,22 @@ void editorAppendRow(char* s, size_t len) {
     E.numrows++;
 }
 
+void editorFreeRow(erow* row) {
+    free(row->render);
+    free(row->chars);
+}
+
+void editorDeleteRow(int at) {
+    // check if the cursor position is proper by "y".
+    if (at < 0 || at >= E.numrows) return;
+    editorFreeRow(&E.row[at]);
+    memmove(&E.row[at], &E.row[at + 1], sizeof(erow) * (E.numrows - at - 1));
+    E.numrows--;
+    E.dirty++;
+}
+
 void editorRowInsertChar(erow* row, int at, int c) {
-    // check if the cursor position is proper.
+    // check if the cursor position is proper by "x".
     if (at < 0 || at > row->size) return;
     // realloc the space of the row for the new character (add 2 for the NULL byte).
     row->chars = realloc(row->chars, row->size + 2);
@@ -354,7 +370,7 @@ void editorRowInsertChar(erow* row, int at, int c) {
 }
 
 void editorRowDeleteChar(erow* row, int at) {
-    // check if the cursor position is proper.
+    // check if the cursor position is proper by "x".
     if (at < 0 || at > row->size) at = row->size;
     // move the right part from "at" position to the left one position.
     memmove(&row->chars[at - 1], &row->chars[at], row->size - at + 1);
@@ -379,10 +395,15 @@ void editorInsertChar(int c) {
 
 void editorDeleteChar() {
     if (E.cx > 0) {
-        // call the function which will delete the character to the next of the cursor.
+        // call the function which will delete a character to the next of the cursor.
         editorRowDeleteChar(&E.row[E.cy], E.cx);
         // after deleting move the cursor one to the left.
         E.cx--;
+    }
+    else if (E.cx == 0 && E.cy != 0) {
+        editorDeleteRow(E.cy);
+        E.cy--;
+        E.cx = E.row[E.cy].size;
     }
 }
 
