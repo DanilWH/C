@@ -86,6 +86,7 @@ void editorUpdateRow(erow* row);
 void editorAppendRow(char* s, size_t len);
 void editorFreeRow(erow* row);
 void editorDeleteRow(int at);
+void editorRowAppendString(erow* row, char* s, size_t len);
 void editorRowInsertChar(erow* row, int at, int c);
 void editorRowDeleteChar(erow* row, int at);
 void editorInsertChar(int c);
@@ -340,16 +341,33 @@ void editorAppendRow(char* s, size_t len) {
 }
 
 void editorFreeRow(erow* row) {
+    /* frees the memory owned by "row". */
+
     free(row->render);
     free(row->chars);
 }
 
 void editorDeleteRow(int at) {
-    // check if the cursor position is proper by "y".
+    // validate the "at" index.
     if (at < 0 || at >= E.numrows) return;
     editorFreeRow(&E.row[at]);
+    // overwrite the deleted row struct with the rest of the rows that come after it.
     memmove(&E.row[at], &E.row[at + 1], sizeof(erow) * (E.numrows - at - 1));
     E.numrows--;
+    E.dirty++;
+}
+
+void editorRowAppendString(erow* row, char* s, size_t len) {
+    // reallocate the block of the memory for the append string.
+    row->chars = realloc(row->chars, row->size + len + 1);
+    // copy the string we want to the end of the precending row.
+    memcpy(&row->chars[row->size], s, len);
+    // increase the resultiing string size.
+    row->size += len;
+    // add the NULL byte to the end of the resulting string.
+    row->chars[row->size] = '\0';
+    // update the row to show the changes.
+    editorUpdateRow(row);
     E.dirty++;
 }
 
@@ -401,9 +419,10 @@ void editorDeleteChar() {
         E.cx--;
     }
     else if (E.cx == 0 && E.cy != 0) {
+        E.cx = E.row[E.cy - 1].size;
+        editorRowAppendString(&E.row[E.cy - 1], E.row[E.cy].chars, E.row[E.cy].size);
         editorDeleteRow(E.cy);
         E.cy--;
-        E.cx = E.row[E.cy].size;
     }
 }
 
@@ -567,7 +586,11 @@ void editorProcessKeypress() {
         case BACKSPACE:
         case CTRL_KEY('h'):
         case DELETE_KEY:
-            if (c == DELETE_KEY) editorMoveCursor(ARROW_RIGHT);
+            if (c == DELETE_KEY) {
+                // do nothing if when DELETE key pressed and the cursor is at the end of the file.
+                if (E.cx == E.row[E.cy].size && E.cy == E.numrows - 1) return;
+                editorMoveCursor(ARROW_RIGHT);
+            }
             editorDeleteChar();
             break;
 
