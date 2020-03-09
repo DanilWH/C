@@ -625,7 +625,8 @@ void editorProcessKeypress() {
             {
                 // if the cursor is somewhere at the middle of the terminal then
                 // move the cursor to the up or down of the terminal edge.
-                if (E.cy > E.rowoff && E.cy < E.rowoff + E.screenrows - 1) {
+                if (E.cy > E.rowoff && E.cy < E.rowoff + E.screenrows - 1 &&
+                    E.cy < E.numrows - E.screenrows) {
                     if (c == PAGE_UP)
                         E.cy = E.rowoff;
                     else if (c == PAGE_DOWN)
