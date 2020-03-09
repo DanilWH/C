@@ -83,13 +83,14 @@ int getCursorPosition(int* rows, int* cols);
 int getWindowSize(int* rows, int* cols);
 int editorRowCxToRx(erow* row, int cx);
 void editorUpdateRow(erow* row);
-void editorAppendRow(char* s, size_t len);
+void editorInsertRow(int at, char* s, size_t len);
 void editorFreeRow(erow* row);
 void editorDeleteRow(int at);
 void editorRowAppendString(erow* row, char* s, size_t len);
 void editorRowInsertChar(erow* row, int at, int c);
 void editorRowDeleteChar(erow* row, int at);
 void editorInsertChar(int c);
+void editorInsertNewLine();
 void editorDeleteChar();
 char* editorRowsToString(int* buflen);
 void editorSave();
@@ -321,13 +322,17 @@ void editorUpdateRow(erow* row) {
     row->rsize = idx;
 }
 
-void editorAppendRow(char* s, size_t len) {
+void editorInsertRow(int at, char* s, size_t len) {
+    // valid the cursor position.
+    if (at < 0 || at > E.numrows) return;
+
     // reallocate the block of memory for the new row.
     E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
+    // move the below text one position down.
+    memmove(&E.row[at + 1], &E.row[at], sizeof(erow) * (E.numrows - at));
 
     // write the lenght of the read string into E.row.size
     // and copy the sting into the E.row.chars buffer.
-    int at = E.numrows;
     E.row[at].size = len;
     E.row[at].chars = malloc(len + 1);
     memcpy(E.row[at].chars, s, len);
@@ -409,6 +414,25 @@ void editorInsertChar(int c) {
     editorRowInsertChar(&E.row[E.cy], E.cx, c);
     // after inserting move the cursor forward.
     E.cx++;
+}
+
+void editorInsertNewLine() {
+    if (E.cx == 0) {
+        editorInsertRow(E.cy, "", 0);
+    }
+    else {
+        erow* row = &E.row[E.cy];
+        // split the line we are on into two rows.
+        editorInsertRow(E.cy + 1, &row->chars[E.cx], row->size - E.cx);
+        // rewrite the current line again.
+        row = &E.row[E.cy];
+        // truncate the current row's contents.
+        row->size = E.cx;
+        row->chars[row->size] = '\0';
+        editorUpdateRow(row);
+    }
+    E.cy++;
+    E.cx = 0;
 }
 
 void editorDeleteChar() {
@@ -518,7 +542,7 @@ void editorOpen(char* filename) {
             linelen--;
         
         // appending a string row to the buffer.
-        editorAppendRow(line, linelen);
+        editorInsertRow(E.numrows, line, linelen);
     }
     // free the allocated blocks of memory.
     free(line);
@@ -555,7 +579,7 @@ void editorProcessKeypress() {
     switch (c) {
         // react to the "enter" key.
         case '\r':
-            /* TODO */
+            editorInsertNewLine();
             break;
 
         case CTRL_KEY('q'):
