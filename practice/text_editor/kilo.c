@@ -410,6 +410,10 @@ void editorRowDeleteChar(erow* row, int at) {
 /*** editor operations ***/
 
 void editorInsertChar(int c) {
+    if (E.cy == E.numrows) {
+        editorInsertRow(E.cy, "", 0);
+    }
+    
     // call the function to insert the given character.
     editorRowInsertChar(&E.row[E.cy], E.cx, c);
     // after inserting move the cursor forward.
