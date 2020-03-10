@@ -413,7 +413,7 @@ void editorInsertChar(int c) {
     if (E.cy == E.numrows) {
         editorInsertRow(E.cy, "", 0);
     }
-    
+
     // call the function to insert the given character.
     editorRowInsertChar(&E.row[E.cy], E.cx, c);
     // after inserting move the cursor forward.
@@ -608,7 +608,8 @@ void editorProcessKeypress() {
             break;
 
         case END_KEY:
-            E.cx = E.row[E.cy].size;
+            if (E.cy < E.numrows)
+                E.cx = E.row[E.cy].size;
             break;
 
         case BACKSPACE:
@@ -651,7 +652,8 @@ void editorProcessKeypress() {
         case ARROW_DOWN:
         case ARROW_LEFT:
         case ARROW_RIGHT:
-            editorMoveCursor(c);
+            if (E.cy < E.numrows)
+                editorMoveCursor(c);
             break;
 
         // ignore the 27 escape sequenses ("ESC" key).
@@ -700,6 +702,8 @@ void editorMoveCursor(int key) {
             break;
     }
 
+    // if the cursor position is over than the line size is
+    // then move the cursor to the end of the line.
     int rowlen = E.row[E.cy].size;
     if (E.cx > rowlen) E.cx = rowlen;
 }
