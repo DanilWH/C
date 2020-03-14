@@ -97,6 +97,7 @@ void editorSave();
 void editorOpen(char* filename);
 void abAppend(struct abuf* ab, const char* s, int len);
 void abFree(struct abuf* ab);
+char* editorPrompt(char* prompt);
 void editorProcessKeypress();
 void editorMoveCursor(int key);
 void editorScroll();
@@ -488,7 +489,13 @@ char* editorRowsToString(int* buflen) {
 
 void editorSave() {
     // check the errors.
-    if (E.filename == NULL) return;
+    if (E.filename == NULL) {
+        E.filename = editorPrompt("Save as: %s (ESC to cancel)");
+        if (E.filename == NULL) {
+            editorSetStatusMessage("Save aborted.");
+            return;
+        }
+    }
 
     // get the length and the address of text.
     int len;
@@ -573,6 +580,59 @@ void abFree(struct abuf *ab) {
 }
 
 /*** input ***/
+
+char* editorPrompt(char* prompt) {
+    // set the limit of the prompt size.
+    size_t bufsize = 128;
+    // alloc the memory for the prompt.
+    char* buf = malloc(bufsize);
+
+    // initialize the prompt buffer.
+    size_t buflen = 0;
+    buf[0] = '\0';
+
+    // input.
+    while (1) {
+        // set the status message.
+        editorSetStatusMessage(prompt, buf);
+        editorRefreshScreen();
+
+        // wait for a keypress.
+        int c = editorReadKey();
+        // when the "Delete" or "Backspace" or "CTRL+H" is pressed then
+        if (c == DELETE_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
+            // if the buffer is not empty then replase the last character
+            // in the buffer by the NULL byte.
+            if (buflen != 0) buf[--buflen] = '\0';
+        }
+        // when the "Escape" key is pressed then cancel the input.
+        else if (c == '\x1b') {
+            editorSetStatusMessage("");
+            free(buf);
+            return NULL;
+        }
+        // when the "Enter" key is pressed and the buf is not empty then
+        else if (c == '\r' && buflen != 0) {
+            // clear the status bar
+            editorSetStatusMessage("");
+            // return its input.
+            return buf;
+        }
+        // when a printable character is pressed then
+        else if (!iscntrl(c) && c < 128) {
+            // if the input size has reached the maximum capacity then.
+            if (buflen == bufsize - 1) {
+                // double the size of the buffer.
+                bufsize *= 2;
+                buf = realloc(buf, bufsize);
+            }
+            // append the character to the buffer.
+            buf[buflen++] = c;
+            // append the NULL byte to the end of the input.
+            buf[buflen] = '\0';
+        }
+    }
+}
 
 void editorProcessKeypress() {
     static int quit_times = KILO_QUIT_TIMES;
