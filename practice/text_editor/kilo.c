@@ -16,7 +16,7 @@
 #include <termios.h> // tcgetattr(), tcsetattr(), ECHO, etc;
 #include <time.h> // time_t, time();
 #include <unistd.h> // read(), write(), frtuncate(), close(), STDOUT_FILENO;
-#include <string.h> // memcpy(), strdup(), memmove(), strerror();
+#include <string.h> // memcpy(), strdup(), memmove(), strerror(), strstr();
 
 /*** defines ***/
 #define CTRL_KEY(k) ((k) & 0x1f)
@@ -82,6 +82,7 @@ int editorReadKey();
 int getCursorPosition(int* rows, int* cols);
 int getWindowSize(int* rows, int* cols);
 int editorRowCxToRx(erow* row, int cx);
+int editorRowRxToCx(erow *row, int rx);
 void editorUpdateRow(erow* row);
 void editorInsertRow(int at, char* s, size_t len);
 void editorFreeRow(erow* row);
@@ -95,6 +96,7 @@ void editorDeleteChar();
 char* editorRowsToString(int* buflen);
 void editorSave();
 void editorOpen(char* filename);
+void editorFind();
 void abAppend(struct abuf* ab, const char* s, int len);
 void abFree(struct abuf* ab);
 char* editorPrompt(char* prompt);
@@ -117,7 +119,7 @@ int main(int argc, char* argv[]) {
         editorOpen(argv[1]);
     }
 
-    editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit");
+    editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");
 
     // run the editor process.
     while(1) {
@@ -297,6 +299,19 @@ int editorRowCxToRx(erow* row, int cx) {
         rx++;
     }
     return rx;
+}
+
+int editorRowRxToCx(erow *row, int rx) {
+    int cur_rx = 0;
+    int cx;
+    for (cx = 0; cx < row->size; cx++) {
+        if (row->chars[cx] == '\t')
+            cur_rx += (KILO_TAB_STOP - 1) - (cur_rx % KILO_TAB_STOP);
+        cur_rx++;
+
+        if (cur_rx > rx) return cx;
+    }
+    return cx;
 }
 
 void editorUpdateRow(erow* row) {
@@ -560,6 +575,34 @@ void editorOpen(char* filename) {
     fclose(fp);
 }
 
+/*** find ***/
+
+void editorFind() {
+    // get the user input to search.
+    char *query = editorPrompt("Search: %s (ESC to cancel)");
+    if (query == NULL) return;
+
+    // loop through all the rows of the file.
+    for (int i = 0; i < E.numrows; i++) {
+        erow *row = &E.row[i];
+        // checks if the "query" is a substring of the current row.
+        char *match = strstr(row->render, query);
+        // if so
+        if (match) {
+            // set the cursor to the proper position.
+            // (because of that "row->render" and "match" are pointers we substruct
+            // "row->render" from "match" to convert that into an index of the substring).
+            E.cy = i;
+            E.cx = editorRowRxToCx(row, match - row->render);
+            E.rowoff = E.numrows;
+            break;
+        }
+    }
+
+    // free the memory from the input.
+    free(query);
+}
+
 /*** append buffer ***/
 
 void abAppend(struct abuf *ab, const char *s, int len) {
@@ -670,6 +713,10 @@ void editorProcessKeypress() {
         case END_KEY:
             if (E.cy < E.numrows)
                 E.cx = E.row[E.cy].size;
+            break;
+
+        case CTRL_KEY('f'):
+            editorFind();
             break;
 
         case BACKSPACE:
