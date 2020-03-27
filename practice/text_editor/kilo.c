@@ -579,21 +579,45 @@ void editorOpen(char* filename) {
 /*** find ***/
 
 void editorFindCallback(char *query, int key) {
+    static int last_match = -1;
+    static int direction = 1;
+
     if (key == '\r' || key == '\x1b') {
+        last_match = -1;
+        direction = 1;
         return;
     }
+    else if (key == ARROW_RIGHT || key == ARROW_DOWN)
+        direction = 1;
+    else if (key == ARROW_LEFT || key == ARROW_UP)
+        direction = -1;
+    else {
+        last_match = -1;
+        direction = 1;
+    }
 
+    if (last_match == -1) direction = 1;
+    // current is the index of the current row we're searching.
+    int current = last_match;
     // loop through all the rows of the file.
     for (int i = 0; i < E.numrows; i++) {
-        erow *row = &E.row[i];
+        // search in the proper direction.
+        current += direction;
+        // allowing a search to "wrap around" the end of a file and
+        // continue from the top or vice versa.
+        if (current == -1) current = E.numrows - 1;
+        else if (current == E.numrows) current = 0;
+
+        erow *row = &E.row[current];
         // checks if the "query" is a substring of the current row.
         char *match = strstr(row->render, query);
         // if so
         if (match) {
+            last_match = current;
             // set the cursor to the proper position.
             // (because of that "row->render" and "match" are pointers we substruct
             // "row->render" from "match" to convert that into an index of the substring).
-            E.cy = i;
+            E.cy = current;
             E.cx = editorRowRxToCx(row, match - row->render);
             E.rowoff = E.numrows;
             break;
@@ -608,7 +632,7 @@ void editorFind() {
     int save_rowoff = E.rowoff;
     int save_coloff = E.coloff;
     // get the user input to search.
-    char *query = editorPrompt("Search: %s (ESC to cancel)", editorFindCallback);
+    char *query = editorPrompt("Search: %s (Use ESC/Arrows/Enter)", editorFindCallback);
 
     if (query) {
         // free the memory from the input.
