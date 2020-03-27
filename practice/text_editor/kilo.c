@@ -602,12 +602,24 @@ void editorFindCallback(char *query, int key) {
 }
 
 void editorFind() {
+    // save the old values of the cursor position.
+    int save_cx = E.cx;
+    int save_cy = E.cy;
+    int save_rowoff = E.rowoff;
+    int save_coloff = E.coloff;
     // get the user input to search.
     char *query = editorPrompt("Search: %s (ESC to cancel)", editorFindCallback);
 
     if (query) {
         // free the memory from the input.
         free(query);
+    }
+    else {
+        // restore the cursor position if the user prompt is cancelled.
+        E.cx = save_cx;
+        E.cy = save_cy;
+        E.rowoff = save_rowoff;
+        E.coloff = save_coloff;
     }
 }
 
@@ -685,6 +697,7 @@ char* editorPrompt(char* prompt, void (*callback)(char *, int)) {
             buf[buflen] = '\0';
         }
 
+        // search the user prompt each time the user press any printable character.
         if (callback) callback(buf, c);
     }
 }
