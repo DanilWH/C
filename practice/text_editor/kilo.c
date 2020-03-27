@@ -96,10 +96,11 @@ void editorDeleteChar();
 char* editorRowsToString(int* buflen);
 void editorSave();
 void editorOpen(char* filename);
+void editorFindCallback(char *query, int key);
 void editorFind();
 void abAppend(struct abuf* ab, const char* s, int len);
 void abFree(struct abuf* ab);
-char* editorPrompt(char* prompt);
+char* editorPrompt(char* prompt, void (*callback)(char *, int));
 void editorProcessKeypress();
 void editorMoveCursor(int key);
 void editorScroll();
@@ -505,7 +506,7 @@ char* editorRowsToString(int* buflen) {
 void editorSave() {
     // check the errors.
     if (E.filename == NULL) {
-        E.filename = editorPrompt("Save as: %s (ESC to cancel)");
+        E.filename = editorPrompt("Save as: %s (ESC to cancel)", NULL);
         if (E.filename == NULL) {
             editorSetStatusMessage("Save aborted.");
             return;
@@ -577,10 +578,10 @@ void editorOpen(char* filename) {
 
 /*** find ***/
 
-void editorFind() {
-    // get the user input to search.
-    char *query = editorPrompt("Search: %s (ESC to cancel)");
-    if (query == NULL) return;
+void editorFindCallback(char *query, int key) {
+    if (key == '\r' || key == '\x1b') {
+        return;
+    }
 
     // loop through all the rows of the file.
     for (int i = 0; i < E.numrows; i++) {
@@ -598,9 +599,16 @@ void editorFind() {
             break;
         }
     }
+}
 
-    // free the memory from the input.
-    free(query);
+void editorFind() {
+    // get the user input to search.
+    char *query = editorPrompt("Search: %s (ESC to cancel)", editorFindCallback);
+
+    if (query) {
+        // free the memory from the input.
+        free(query);
+    }
 }
 
 /*** append buffer ***/
@@ -624,7 +632,7 @@ void abFree(struct abuf *ab) {
 
 /*** input ***/
 
-char* editorPrompt(char* prompt) {
+char* editorPrompt(char* prompt, void (*callback)(char *, int)) {
     // set the limit of the prompt size.
     size_t bufsize = 128;
     // alloc the memory for the prompt.
@@ -651,6 +659,7 @@ char* editorPrompt(char* prompt) {
         // when the "Escape" key is pressed then cancel the input.
         else if (c == '\x1b') {
             editorSetStatusMessage("");
+            if (callback) callback(buf, c);
             free(buf);
             return NULL;
         }
@@ -658,6 +667,7 @@ char* editorPrompt(char* prompt) {
         else if (c == '\r' && buflen != 0) {
             // clear the status bar
             editorSetStatusMessage("");
+            if (callback) callback(buf, c);
             // return its input.
             return buf;
         }
@@ -674,6 +684,8 @@ char* editorPrompt(char* prompt) {
             // append the NULL byte to the end of the input.
             buf[buflen] = '\0';
         }
+
+        if (callback) callback(buf, c);
     }
 }
 
