@@ -100,7 +100,7 @@ void editorFindCallback(char *query, int key);
 void editorFind();
 void abAppend(struct abuf* ab, const char* s, int len);
 void abFree(struct abuf* ab);
-char* editorPrompt(char* prompt, void (*callback)(char *, int));
+char *editorPrompt(char *prompt, void (*callback)(char *, int));
 void editorProcessKeypress();
 void editorMoveCursor(int key);
 void editorScroll();
@@ -127,7 +127,7 @@ int main(int argc, char* argv[]) {
         editorRefreshScreen();
         editorProcessKeypress();
     }
-    
+
     // success.
     return 0;
 }
@@ -247,7 +247,7 @@ int editorReadKey() {
         return '\x1b';
     }
     else {
-        return c;   
+        return c;
     }
 }
 
@@ -477,7 +477,7 @@ char* editorRowsToString(int* buflen) {
     /* converts the array of "erow" structs into a single string. */
 
     // count how many character has the buffer (len of the whole file).
-    // we also add 1 to each one for the newline character. 
+    // we also add 1 to each one for the newline character.
     int totlen = 0;
     for (int i = 0; i < E.numrows; i++)
         totlen += E.row[i].size + 1;
@@ -557,7 +557,7 @@ void editorOpen(char* filename) {
     char* line = NULL;
     size_t linecap = 0; // line capacity
     ssize_t linelen;
-    
+
     // store each line of the file(from fp to line) while the end of the
     // file is not reached and return the number of characters read
     // without the null byte '\0'.
@@ -567,7 +567,7 @@ void editorOpen(char* filename) {
         while (linelen > 0 && (line[linelen - 1] == '\n' ||
                                line[linelen - 1] == '\r'))
             linelen--;
-        
+
         // appending a string row to the buffer.
         editorInsertRow(E.numrows, line, linelen);
     }
@@ -668,7 +668,7 @@ void abFree(struct abuf *ab) {
 
 /*** input ***/
 
-char* editorPrompt(char* prompt, void (*callback)(char *, int)) {
+char *editorPrompt(char *prompt, void (*callback)(char *, int)) {
     // set the limit of the prompt size.
     size_t bufsize = 128;
     // alloc the memory for the prompt.
@@ -803,7 +803,7 @@ void editorProcessKeypress() {
                 }
             }
             break;
-        
+
         case ARROW_UP:
         case ARROW_DOWN:
         case ARROW_LEFT:
@@ -912,7 +912,7 @@ void editorDrawStatusBar(struct abuf *ab) {
 
     // display the cursor position.
     abAppend(ab, rstatus, rlen);
-    
+
     // the escape sequence <esc>[m switches back to normal formatting.
     abAppend(ab, "\x1b[m", 3);
     // move to the next line (for message status).
@@ -1001,7 +1001,18 @@ void editorDrawRows(struct abuf *ab) {
             int len = E.row[filerow].rsize - E.coloff;
             if (len < 0) len = 0;
             if (len > E.screencols) len = E.screencols;
-            abAppend(ab, &E.row[filerow].render[E.coloff], len);
+
+            char *c = &E.row[filerow].render[E.coloff];
+            for (int i = 0; i < len; i++) {
+              if (isdigit(c[i])) {
+                abAppend(ab, "\x1b[33m", 5);
+                abAppend(ab, &c[i], 1);
+                abAppend(ab, "\x1b[39m", 5);
+              }
+              else {
+                abAppend(ab, &c[i], 1);
+              }
+            }
         }
 
         abAppend(ab, "\x1b[K", 3);
