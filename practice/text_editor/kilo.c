@@ -16,7 +16,7 @@
 #include <termios.h> // tcgetattr(), tcsetattr(), ECHO, etc;
 #include <time.h> // time_t, time();
 #include <unistd.h> // read(), write(), frtuncate(), close(), STDOUT_FILENO;
-#include <string.h> // memcpy(), strdup(), memmove(), strerror(), strstr();
+#include <string.h> // memcpy(), strdup(), memmove(), strerror(), strstr(), memset();
 
 /*** defines ***/
 #define CTRL_KEY(k) ((k) & 0x1f)
@@ -38,14 +38,20 @@ enum editorKey {
     PAGE_DOWN
 };
 
+enum editorHighlight {
+    HL_NORMAL = 0,
+    HL_NUMBER
+};
+
 /*** data ***/
 
 // a data type (buffer) for storing a row of text in our editor.
 typedef struct erow {
-    int size; // size of a line.
+    int size; // the size of a string.
     int rsize;
-    char* chars; // the line.
-    char* render;
+    char *chars; // the string.
+    char *render;
+    unsigned char *hl; // providing of highlighting.
 } erow;
 
 // The editor settings.
@@ -59,7 +65,7 @@ struct editorConfig {
     int numrows; // the number of the file rows.
     erow *row; // buffer for storing a text from a file.
     int dirty; // dirty variable.
-    char* filename; // the name of the opened file.
+    char *filename; // the name of the opened file.
     char statusmsg[80];
     time_t statusmsg_time;
     struct termios orig_termios; // holds the terminal attributes.
@@ -81,6 +87,8 @@ void die (const char* s);
 int editorReadKey();
 int getCursorPosition(int* rows, int* cols);
 int getWindowSize(int* rows, int* cols);
+void editorUpdateSyntax(erow *row);
+int editorSyntaxToColor(int hl);
 int editorRowCxToRx(erow* row, int cx);
 int editorRowRxToCx(erow *row, int rx);
 void editorUpdateRow(erow* row);
@@ -290,6 +298,30 @@ int getWindowSize(int *rows, int * cols) {
     }
 }
 
+/*** syntax highlighting***/
+
+void editorUpdateSyntax(erow *row) {
+    // make the size of the hl array equal to the render array size.
+    row->hl = realloc(row->hl, row->rsize);
+    // assign all characters to normal by default.
+    memset(row->hl, HL_NORMAL, row->rsize);
+
+    // loop through the line and assagin numbers highlighting if any.
+    for (int i = 0; i < row->rsize; i++) {
+        if (isdigit(row->render[i]))
+            row->hl[i] = HL_NUMBER;
+    }
+}
+
+int editorSyntaxToColor(int hl) {
+    switch (hl) {
+        case HL_NUMBER:
+            return 33;
+        default:
+            return 37;
+    }
+}
+
 /*** row operations ***/
 
 int editorRowCxToRx(erow* row, int cx) {
@@ -321,8 +353,8 @@ void editorUpdateRow(erow* row) {
     for (int i = 0; i < row->size; i++)
         if (row->chars[i] == '\t') tabs++;
 
-    // allocate the nessessary amount of memory.
     free(row->render);
+    // allocate the nessessary amount of memory.
     row->render = malloc(row->size + tabs * (KILO_TAB_STOP - 1) + 1);
 
     // copy the line from chars to render with spaces instead of tabs.
@@ -337,6 +369,8 @@ void editorUpdateRow(erow* row) {
     }
     row->render[idx] = '\0';
     row->rsize = idx;
+
+    editorUpdateSyntax(row);
 }
 
 void editorInsertRow(int at, char* s, size_t len) {
@@ -357,6 +391,7 @@ void editorInsertRow(int at, char* s, size_t len) {
 
     E.row[at].rsize = 0;
     E.row[at].render = NULL;
+    E.row[at].hl = NULL;
     editorUpdateRow(&E.row[at]);
 
     E.numrows++;
@@ -364,9 +399,9 @@ void editorInsertRow(int at, char* s, size_t len) {
 
 void editorFreeRow(erow* row) {
     /* frees the memory owned by "row". */
-
     free(row->render);
     free(row->chars);
+    free(row->hl);
 }
 
 void editorDeleteRow(int at) {
@@ -998,24 +1033,54 @@ void editorDrawRows(struct abuf *ab) {
         }
         else {
             // pring the text row-by-row.
+            // get proper length of the row.
             int len = E.row[filerow].rsize - E.coloff;
             if (len < 0) len = 0;
             if (len > E.screencols) len = E.screencols;
 
+            // get the row.
             char *c = &E.row[filerow].render[E.coloff];
+            unsigned char *hl = &E.row[filerow].hl[E.coloff];
+            // a variable to keep the color of each character.
+            int current_color = -1;
+            // loop through each character.
             for (int i = 0; i < len; i++) {
-              if (isdigit(c[i])) {
-                abAppend(ab, "\x1b[33m", 5);
-                abAppend(ab, &c[i], 1);
-                abAppend(ab, "\x1b[39m", 5);
-              }
-              else {
-                abAppend(ab, &c[i], 1);
-              }
+                if (hl[i] == HL_NORMAL) {
+                    // print the escape sequence when the color changes.
+                    if (current_color != -1) {
+                        // reset the text color to default.
+                        abAppend(ab, "\x1b[39m", 5);
+                        // reset the color-track-variable.
+                        current_color = -1;
+                    }
+                    // print the character.
+                    abAppend(ab, &c[i], 1);
+                }
+                else {
+                    // get the proper color of the current character.
+                    int color = editorSyntaxToColor(hl[i]);
+                    // // print the escape sequence when the color changes.
+                    if (color != current_color) {
+                        // we change the color, so we change the traking variable.
+                        current_color = color;
+                        // create a buffer for the escape sequence.
+                        char buf[16];
+                        // format and store the escape sequence to the buffer
+                        // and get the length of the escape sequence.
+                        int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
+                        // print the escape sequence to color the character.
+                        abAppend(ab, buf, clen);
+                    }
+                    // print the character.
+                    abAppend(ab, &c[i], 1);
+                }
             }
+            // make sure the text color is reset to default.
+            abAppend(ab, "\x1b[39m", 5);
         }
 
         abAppend(ab, "\x1b[K", 3);
         abAppend(ab, "\r\n", 2);
     }
 }
+
