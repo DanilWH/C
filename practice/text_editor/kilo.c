@@ -635,6 +635,18 @@ void editorFindCallback(char *query, int key) {
     }
 
     if (last_match == -1) direction = 1;
+
+    // highlight all matching words.
+    for (int i = 0; i < E.numrows; i++) {
+        erow *row = &E.row[i];
+        char *match = strstr(row->render, query);
+        // update the syntax of each line before highlighting of the matching word.
+        editorUpdateSyntax(row);
+        if (match) {
+            // highlight the query.
+            memset(&row->hl[match - row->render], HL_MATCH, strlen(query));
+        }
+    }
     // current is the index of the current row we're searching.
     int current = last_match;
     // loop through all the rows of the file.
@@ -658,9 +670,6 @@ void editorFindCallback(char *query, int key) {
             E.cy = current;
             E.cx = editorRowRxToCx(row, match - row->render);
             E.rowoff = E.numrows;
-            
-            // highlight the query.
-            memset(&row->hl[match - row->render], HL_MATCH, strlen(query));
             break;
         }
     }
@@ -736,6 +745,10 @@ char *editorPrompt(char *prompt, void (*callback)(char *, int)) {
         // when the "Escape" key is pressed then cancel the input.
         else if (c == '\x1b') {
             editorSetStatusMessage("");
+            // update syntax of whole text.
+            for (int i = 0; i < E.numrows; i++) {
+                editorUpdateSyntax(&E.row[i]);
+            }
             if (callback) callback(buf, c);
             free(buf);
             return NULL;
