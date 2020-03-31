@@ -16,7 +16,7 @@
 #include <termios.h> // tcgetattr(), tcsetattr(), ECHO, etc;
 #include <time.h> // time_t, time();
 #include <unistd.h> // read(), write(), frtuncate(), close(), STDOUT_FILENO;
-#include <string.h> // memcpy(), strdup(), memmove(), strerror(), strstr(), memset();
+#include <string.h> // memcpy(), strdup(), memmove(), strerror(), strstr(), memset(), strchr();
 
 /*** defines ***/
 #define CTRL_KEY(k) ((k) & 0x1f)
@@ -301,16 +301,34 @@ int getWindowSize(int *rows, int * cols) {
 
 /*** syntax highlighting***/
 
+int is_separator(char c) {
+    return isspace(c) || c == '\0' || strchr("()[]<>+-/*=,.;~%", c) != NULL;
+}
+
 void editorUpdateSyntax(erow *row) {
     // make the size of the hl array equal to the render array size.
     row->hl = realloc(row->hl, row->rsize);
     // assign all characters to normal by default.
     memset(row->hl, HL_NORMAL, row->rsize);
 
+    // keep track whether one of the previous characters is a separator.
+    // we consider the beginning of each line as a separator.
+    int prev_sep = 1;
+    // each new line begins as a normal character.
+    unsigned char prev_hl = HL_NORMAL;
     // loop through the line and assagin numbers highlighting if any.
     for (int i = 0; i < row->rsize; i++) {
-        if (isdigit(row->render[i]))
+        // get each character from the current row.
+        char c = row->render[i];
+
+        if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) ||
+        (c == '.' && prev_hl == HL_NUMBER))
+        {
             row->hl[i] = HL_NUMBER;
+            prev_sep = 0;
+        }
+        prev_hl = row->hl[i];
+        prev_sep = is_separator(c);
     }
 }
 
@@ -745,7 +763,7 @@ char *editorPrompt(char *prompt, void (*callback)(char *, int)) {
         // when the "Escape" key is pressed then cancel the input.
         else if (c == '\x1b') {
             editorSetStatusMessage("");
-            // update syntax of whole text.
+            // update syntax of whole text before the user exits.
             for (int i = 0; i < E.numrows; i++) {
                 editorUpdateSyntax(&E.row[i]);
             }
