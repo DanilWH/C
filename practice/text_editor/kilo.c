@@ -40,7 +40,8 @@ enum editorKey {
 
 enum editorHighlight {
     HL_NORMAL = 0,
-    HL_NUMBER
+    HL_NUMBER,
+    HL_MATCH
 };
 
 /*** data ***/
@@ -317,6 +318,8 @@ int editorSyntaxToColor(int hl) {
     switch (hl) {
         case HL_NUMBER:
             return 33;
+        case HL_MATCH:
+            return 94;
         default:
             return 37;
     }
@@ -655,6 +658,9 @@ void editorFindCallback(char *query, int key) {
             E.cy = current;
             E.cx = editorRowRxToCx(row, match - row->render);
             E.rowoff = E.numrows;
+            
+            // highlight the query.
+            memset(&row->hl[match - row->render], HL_MATCH, strlen(query));
             break;
         }
     }
