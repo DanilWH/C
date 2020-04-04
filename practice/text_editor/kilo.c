@@ -26,7 +26,8 @@
 #define KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define HL_HIGHLIGHT_NUMBERS (1 << 0)
-#define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
+#define HL_HIGHLIGHT_STRINGS (1 << 1)
+#define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0])) // the length of the HLDB array.
 
 enum editorKey {
     BACKSPACE = 127,
@@ -44,7 +45,8 @@ enum editorKey {
 enum editorHighlight {
     HL_NORMAL = 0,
     HL_NUMBER,
-    HL_MATCH
+    HL_MATCH,
+    HL_STRING
 };
 
 /*** data ***/
@@ -97,7 +99,7 @@ struct editorSyntax HLDB[] = {
     {
         "c",
         C_HL_extensions,
-        HL_HIGHLIGHT_NUMBERS
+        HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
     },
 };
 
@@ -342,12 +344,47 @@ void editorUpdateSyntax(erow *row) {
     // keep track whether one of the previous characters is a separator.
     // we consider the beginning of each line as a separator.
     int prev_sep = 1;
+    // keep track if we are printing a string.
+    int in_string = 0;
     // each new line begins as a normal character.
     unsigned char prev_hl = HL_NORMAL;
     // loop through the line and assagin numbers highlighting if any.
     for (int i = 0; i < row->rsize; i++) {
         // get each character from the current row.
         char c = row->render[i];
+
+        if (E.syntax->flags & HL_HIGHLIGHT_STRINGS) {
+            // if we are in a string.
+            if (in_string) {
+                // set the current character as a part of the string.
+                row->hl[i] = HL_STRING;
+                // if the current charachter is a backslash, and there's at least one
+                // more character in that line that comes after the backslash
+                if (c == '\\' && i + 1 < row->rsize) {
+                    // then we highlight the character that comes after the backslash.
+                    row->hl[i + 1] = HL_STRING;
+                    // comsume the backslash.
+                    i++;
+                    // go to the beginning of the loop.
+                    continue;
+                }
+                // if we're at the ending of the string then we already aren't in the string.
+                if (c == in_string) in_string = 0;
+                // the closing quote is considering as a separator.
+                prev_sep = 1;
+                // skip the rest of the loop and go to the beginning;
+                continue;
+            }
+            // if we are at the beginning of a string.
+            else if (c == '"' || c == '\'') {
+                // save store the quote
+                in_string = c;
+                // set the current character as a part of the string.
+                row->hl[i] = HL_STRING;
+                // skip the rest of the loop and go to the beginning;
+                continue;
+            }
+        }
 
         if (E.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
             if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) ||
@@ -373,6 +410,8 @@ int editorSyntaxToColor(int hl) {
             return 33;
         case HL_MATCH:
             return 94;
+        case HL_STRING:
+            return 35;
         default:
             return 37;
     }
