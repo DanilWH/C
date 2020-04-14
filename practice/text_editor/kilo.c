@@ -17,7 +17,7 @@
 #include <time.h> // time_t, time();
 #include <unistd.h> // read(), write(), frtuncate(), close(), STDOUT_FILENO;
 #include <string.h> // memcpy(), strdup(), memmove(), strerror(), strstr(),
-                    // memset(), strchr(), strrch(), strcmp();
+                    // memset(), strchr(), strrch(), strcmp(), strncmp();
 
 /*** defines ***/
 #define CTRL_KEY(k) ((k) & 0x1f)
@@ -46,7 +46,8 @@ enum editorHighlight {
     HL_NORMAL = 0,
     HL_NUMBER,
     HL_MATCH,
-    HL_STRING
+    HL_STRING,
+    HL_COMMENT
 };
 
 /*** data ***/
@@ -54,6 +55,7 @@ enum editorHighlight {
 struct editorSyntax {
     char *filetype;
     char **filematch;
+    char *singleline_comment_start;
     int flags;
 };
 
@@ -99,6 +101,7 @@ struct editorSyntax HLDB[] = {
     {
         "c",
         C_HL_extensions,
+        "//",
         HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
     },
 };
@@ -341,6 +344,9 @@ void editorUpdateSyntax(erow *row) {
     // if E.syntax is NULL then there is nothing to highlight.
     if (E.syntax == NULL) return;
 
+    char *scs = E.syntax->singleline_comment_start;
+    int scs_len = scs ? strlen(scs) : 0;
+
     // keep track whether one of the previous characters is a separator.
     // we consider the beginning of each line as a separator.
     int prev_sep = 1;
@@ -352,6 +358,11 @@ void editorUpdateSyntax(erow *row) {
     for (int i = 0; i < row->rsize; i++) {
         // get each character from the current row.
         char c = row->render[i];
+
+        if (scs_len && !in_string && !strncmp(&row->render[i], scs, scs_len)) {
+            memset(&row->hl[i], HL_COMMENT, row->rsize - i);
+            break;
+        }
 
         if (E.syntax->flags & HL_HIGHLIGHT_STRINGS) {
             // if we are in a string.
@@ -412,6 +423,8 @@ int editorSyntaxToColor(int hl) {
             return 94;
         case HL_STRING:
             return 35;
+        case HL_COMMENT:
+            return 36;
         default:
             return 37;
     }
