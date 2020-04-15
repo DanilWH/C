@@ -47,7 +47,9 @@ enum editorHighlight {
     HL_NUMBER,
     HL_MATCH,
     HL_STRING,
-    HL_COMMENT
+    HL_COMMENT,
+    HL_KEYWORD1,
+    HL_KEYWORD2
 };
 
 /*** data ***/
@@ -344,7 +346,9 @@ void editorUpdateSyntax(erow *row) {
     // if E.syntax is NULL then there is nothing to highlight.
     if (E.syntax == NULL) return;
 
+    // make scs an alias for E.syntax->singleline_comment_start.
     char *scs = E.syntax->singleline_comment_start;
+    // make sure if there is a special sing that says we should hightlight single-line comments.
     int scs_len = scs ? strlen(scs) : 0;
 
     // keep track whether one of the previous characters is a separator.
@@ -359,11 +363,13 @@ void editorUpdateSyntax(erow *row) {
         // get each character from the current row.
         char c = row->render[i];
 
+        // check if we at comment position.
         if (scs_len && !in_string && !strncmp(&row->render[i], scs, scs_len)) {
             memset(&row->hl[i], HL_COMMENT, row->rsize - i);
             break;
         }
 
+        // if we should highlight strings in the filetype.
         if (E.syntax->flags & HL_HIGHLIGHT_STRINGS) {
             // if we are in a string.
             if (in_string) {
@@ -397,6 +403,7 @@ void editorUpdateSyntax(erow *row) {
             }
         }
 
+        // check if we should highlight numbers in the filetype.
         if (E.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
             if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) ||
             (c == '.' && prev_hl == HL_NUMBER))
@@ -418,12 +425,16 @@ void editorUpdateSyntax(erow *row) {
 int editorSyntaxToColor(int hl) {
     switch (hl) {
         case HL_NUMBER:
-            return 33;
+            return 35;
         case HL_MATCH:
             return 94;
         case HL_STRING:
-            return 35;
+            return 33;
         case HL_COMMENT:
+            return 32;
+        case HL_KEYWORD1:
+            return 31;
+        case HL_KEYWORD2:
             return 36;
         default:
             return 37;
