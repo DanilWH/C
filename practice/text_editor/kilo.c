@@ -358,8 +358,9 @@ void editorUpdateSyntax(erow *row) {
     int in_string = 0;
     // each new line begins as a normal character.
     unsigned char prev_hl = HL_NORMAL;
-    // loop through the line and assagin numbers highlighting if any.
-    for (int i = 0; i < row->rsize; i++) {
+    // loop through the line and highlight special words or pieces of the text if any.
+    int i = 0;
+    while (i < row->rsize) {
         // get each character from the current row.
         char c = row->render[i];
 
@@ -382,15 +383,10 @@ void editorUpdateSyntax(erow *row) {
                     row->hl[i + 1] = HL_STRING;
                     // comsume the backslash.
                     i++;
-                    // go to the beginning of the loop.
-                    continue;
                 }
                 // if we're at the ending of the string then we already aren't in the string.
                 if (c == in_string) in_string = 0;
                 // the closing quote is considering as a separator.
-                prev_sep = 1;
-                // skip the rest of the loop and go to the beginning;
-                continue;
             }
             // if we are at the beginning of a string.
             else if (c == '"' || c == '\'') {
@@ -398,27 +394,25 @@ void editorUpdateSyntax(erow *row) {
                 in_string = c;
                 // set the current character as a part of the string.
                 row->hl[i] = HL_STRING;
-                // skip the rest of the loop and go to the beginning;
-                continue;
             }
         }
 
         // check if we should highlight numbers in the filetype.
         if (E.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
-            if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) ||
-            (c == '.' && prev_hl == HL_NUMBER))
-            {
+            int correct_digit = isdigit(c) && (prev_sep || prev_hl == HL_NUMBER);
+            int float_correct_digit = (c == '.' && prev_hl == HL_NUMBER);
+            if ((correct_digit || float_correct_digit) && !in_string)
                 // highlight the current charachte as a number.
                 row->hl[i] = HL_NUMBER;
-                // the previews character is no longer a separator, it's a number.
-                prev_sep = 0;
-            }
         }
 
         // store the character as a previews character for the next loop iteration.
         prev_hl = row->hl[i];
         // check whether the current character is a separator.
         prev_sep = is_separator(c);
+
+        // consume one character.
+        i++;
     }
 }
 
