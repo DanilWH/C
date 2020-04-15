@@ -57,6 +57,7 @@ enum editorHighlight {
 struct editorSyntax {
     char *filetype;
     char **filematch;
+    char **keywords;
     char *singleline_comment_start;
     int flags;
 };
@@ -98,11 +99,19 @@ struct abuf {
 /*** filetypes ***/
 
 char *C_HL_extensions[] = {".c", ".h", ".cpp", NULL};
+char *C_HL_keywords[] = {
+    "switch", "if",  "else", "while", "for", "break", "continue", "return",
+    "struct", "union", "typedef", "static", "enum", "class", "case",
+
+    "int|", "long|", "double|", "float|", "char|", "unsigned|", "signed|",
+    "void|", NULL
+};
 
 struct editorSyntax HLDB[] = {
     {
         "c",
         C_HL_extensions,
+        C_HL_keywords,
         "//",
         HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
     },
@@ -346,6 +355,9 @@ void editorUpdateSyntax(erow *row) {
     // if E.syntax is NULL then there is nothing to highlight.
     if (E.syntax == NULL) return;
 
+    // get the alias for E.syntax->keywords.
+    char **keywords = E.syntax->keywords;
+
     // make scs an alias for E.syntax->singleline_comment_start.
     char *scs = E.syntax->singleline_comment_start;
     // make sure if there is a special sing that says we should hightlight single-line comments.
@@ -404,6 +416,35 @@ void editorUpdateSyntax(erow *row) {
             if ((correct_digit || float_correct_digit) && !in_string)
                 // highlight the current charachte as a number.
                 row->hl[i] = HL_NUMBER;
+        }
+
+        // keywords checking block.
+        if (prev_sep) {
+            // loop through the array that contains the keywords.
+            int j;
+            for (j = 0; keywords[j]; j++) {
+                // get the length of each keyword.
+                int klen = strlen(keywords[j]);
+                // if it's the seconary (common C type) keywords then cut the | symbol
+                // from the end of the keyword.
+                int kw2 = keywords[j][klen - 1] == '|';
+                if (kw2) klen--;
+
+                // if one of those keywords is found
+                if (!strncmp(&row->render[i], keywords[j], klen) &&
+                        is_separator(row->render[i + klen])) {
+                    // then highlight the keyword the color that depends on the type of the keyword.
+                    memset(&row->hl[i], kw2 ? HL_KEYWORD2 : HL_KEYWORD1, klen);
+                    // consume the whole keyword.
+                    i += klen;
+                    // instantly exit from the loop.
+                    break;   
+                }
+            }
+            if (keywords[j] != NULL) {
+                prev_sep = 0;
+                continue;
+            }
         }
 
         // store the character as a previews character for the next loop iteration.
