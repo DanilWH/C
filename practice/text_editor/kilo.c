@@ -1259,7 +1259,26 @@ void editorDrawRows(struct abuf *ab) {
             int current_color = -1;
             // loop through each character.
             for (int i = 0; i < len; i++) {
-                if (hl[i] == HL_NORMAL) {
+                // if it's a control charachter
+                if (iscntrl(c[i])) {
+                    // if the character is in the range from ctrl-@ = 0 to ctrl-z = 26
+                    // otherwise print the '?' character.
+                    char sym = (c[i] <= 26) ? '@' + c[i] : '?';
+                    // invert the color.
+                    abAppend(ab, "\x1b[7m", 4);
+                    // print the current character.
+                    abAppend(ab, &sym, 1);
+                    // turn off inverted colors.
+                    abAppend(ab, "\x1b[m", 3);
+                    // if we have to highlight the next characters
+                    if (current_color != -1) {
+                        // then print the escape sequence for the current color afterwards.
+                        char buf[16];
+                        int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", current_color);
+                        abAppend(ab, buf, clen);
+                    }
+                }
+                else if (hl[i] == HL_NORMAL) {
                     // print the escape sequence when the color changes.
                     if (current_color != -1) {
                         // reset the text color to default.
