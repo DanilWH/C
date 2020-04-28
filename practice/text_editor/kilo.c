@@ -48,6 +48,7 @@ enum editorHighlight {
     HL_MATCH,
     HL_STRING,
     HL_COMMENT,
+    HL_MLCOMMENT,
     HL_KEYWORD1,
     HL_KEYWORD2
 };
@@ -59,16 +60,20 @@ struct editorSyntax {
     char **filematch;
     char **keywords;
     char *singleline_comment_start;
+    char *multiline_comment_start;
+    char *multiline_comment_end;
     int flags;
 };
 
 // a data type (buffer) for storing a row of text in our editor.
 typedef struct erow {
+    int idx; // each erow should know its own index within the file.
     int size; // the size of a string.
     int rsize;
     char *chars; // the string.
     char *render;
     unsigned char *hl; // providing of highlighting.
+    int hl_open_comment; // (bool) keeps track if the previous line is a part of an m-l comment.
 } erow;
 
 // The editor settings.
@@ -112,7 +117,7 @@ struct editorSyntax HLDB[] = {
         "c",
         C_HL_extensions,
         C_HL_keywords,
-        "//",
+        "//", "/*", "*/",
         HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
     },
 };
@@ -360,14 +365,24 @@ void editorUpdateSyntax(erow *row) {
 
     // make scs an alias for E.syntax->singleline_comment_start.
     char *scs = E.syntax->singleline_comment_start;
-    // make sure if there is a special sing that says we should hightlight single-line comments.
+    // do the same with multiline_comment_start and multiline_comment_end.
+    char *mcs = E.syntax->multiline_comment_start;
+    char *mce = E.syntax->multiline_comment_end;
+
+    // make sure if there is a special sing that says we should
+    // hightlight single-line or multi-line comments.
     int scs_len = scs ? strlen(scs) : 0;
+    int mcs_len = mcs ? strlen(mcs) : 0;
+    int mce_len = mce ? strlen(mce) : 0;
 
     // keep track whether one of the previous characters is a separator.
     // we consider the beginning of each line as a separator.
     int prev_sep = 1;
     // keep track if we are printing a string.
     int in_string = 0;
+    // keep track if we are in a multi-line comment (not single-line).
+    int in_comment = (row->idx > 0 && E.row[row->idx - 1].hl_open_comment);
+
     // each new line begins as a normal character.
     unsigned char prev_hl = HL_NORMAL;
     // loop through the line and highlight special words or pieces of the text if any.
@@ -376,10 +391,50 @@ void editorUpdateSyntax(erow *row) {
         // get each character from the current row.
         char c = row->render[i];
 
-        // check if we at comment position.
-        if (scs_len && !in_string && !strncmp(&row->render[i], scs, scs_len)) {
+        // check if we should check for the single-line comment highlighting,
+        // if we're not at a multi-line comment and if we at the
+        // beginning of a single-line comment.
+        if (scs_len && !in_string && !in_comment && !strncmp(&row->render[i], scs, scs_len)) {
             memset(&row->hl[i], HL_COMMENT, row->rsize - i);
             break;
+        }
+
+        if (mcs_len && mce_len && !in_string) {
+            // if we are currently highlighting a multi-line comment
+            if (in_comment) {
+                // highlight the current character we're on anyway. 
+                row->hl[i] = HL_MLCOMMENT;
+                // check the end of the multi-line comment and if so
+                if (!strncmp(&row->render[i], mce, mce_len)) {
+                    // highlight the closing characters that mean the end of the comment
+                    memset(&row->hl[i], HL_MLCOMMENT, mce_len);
+                    // consume the closing characters
+                    i += mce_len;
+                    // we mark that we're no longer at the multi-line comment.
+                    in_comment = 0;
+                    // mark the closing characters like a separator.
+                    prev_sep = 1;
+                    // store the character as a previews character for the next loop iteration
+                    // before we skip the rest of the code.
+                    prev_hl = row->hl[i];//////////////////////////////////////////////
+                    // skip the rest of the code.
+                    continue;
+                }
+            }
+            // if we're not at a multi-line comment but at the beginning of the comment
+            else if (!strncmp(&row->render[i], mcs, mcs_len)) {
+                // we highlight the openning characters.
+                memset(&row->hl[i], HL_MLCOMMENT, mcs_len);
+                // consume them.
+                i += mcs_len;
+                // mark we are at a multi-line comment.
+                in_comment = 1;
+                // store the character as a previews character for the next loop iteration
+                // before we skip the rest of the code.
+                prev_hl = row->hl[i];//////////////////////////////////////////////
+                // skip the rest of the code.
+                continue;
+            }
         }
 
         // if we should highlight strings in the filetype.
@@ -455,6 +510,11 @@ void editorUpdateSyntax(erow *row) {
         // consume one character.
         i++;
     }
+
+    int changed = (row->hl_open_comment != in_comment);
+    row->hl_open_comment = in_comment;
+    if (changed && row->idx + 1 < E.numrows)
+        editorUpdateSyntax(&E.row[row->idx + 1]);
 }
 
 int editorSyntaxToColor(int hl) {
@@ -465,7 +525,7 @@ int editorSyntaxToColor(int hl) {
             return 94;
         case HL_STRING:
             return 33;
-        case HL_COMMENT:
+        case HL_COMMENT: case HL_MLCOMMENT:
             return 32;
         case HL_KEYWORD1:
             return 31;
@@ -572,7 +632,12 @@ void editorInsertRow(int at, char* s, size_t len) {
     E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
     // move the below text one position down.
     memmove(&E.row[at + 1], &E.row[at], sizeof(erow) * (E.numrows - at));
+    // update the idx of each row that are below of the new row whenever we insert a new row.
+    for (int i = at + 1; i < E.numrows; i++) E.row[i].idx++;
 
+    /*** initialize all fields of the new erow. ***/
+    // initialize idx to the new row's index.
+    E.row[at].idx = at;
     // write the lenght of the read string into E.row.size
     // and copy the sting into the E.row.chars buffer.
     E.row[at].size = len;
@@ -583,6 +648,7 @@ void editorInsertRow(int at, char* s, size_t len) {
     E.row[at].rsize = 0;
     E.row[at].render = NULL;
     E.row[at].hl = NULL;
+    E.row[at].hl_open_comment = 0;
     editorUpdateRow(&E.row[at]);
 
     E.numrows++;
@@ -601,6 +667,8 @@ void editorDeleteRow(int at) {
     editorFreeRow(&E.row[at]);
     // overwrite the deleted row struct with the rest of the rows that come after it.
     memmove(&E.row[at], &E.row[at + 1], sizeof(erow) * (E.numrows - at - 1));
+    // decrease the idx of each row that are below of the deleted row whenever we delete it.
+    for (int i = at; i < E.numrows - 1; i++) E.row[i].idx--;
     E.numrows--;
     E.dirty++;
 }
