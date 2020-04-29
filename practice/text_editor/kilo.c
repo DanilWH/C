@@ -496,8 +496,11 @@ void editorUpdateSyntax(erow *row) {
                     break;   
                 }
             }
+            // if we didn't found any keyword
             if (keywords[j] != NULL) {
+                // then the position we currently are is not a seporator.
                 prev_sep = 0;
+                // skip the rest of the code as unnecessary.
                 continue;
             }
         }
@@ -511,9 +514,13 @@ void editorUpdateSyntax(erow *row) {
         i++;
     }
 
+    // we look for some multi-line comments changes.
     int changed = (row->hl_open_comment != in_comment);
+    // store the actual condition of in_comment variable to the current row we're updating syntax highlight.
     row->hl_open_comment = in_comment;
+    // if we open of close a multi-line comment
     if (changed && row->idx + 1 < E.numrows)
+        // we update the syntax of the rows that are below of the row we found the change.
         editorUpdateSyntax(&E.row[row->idx + 1]);
 }
 
